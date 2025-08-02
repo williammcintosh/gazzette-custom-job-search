@@ -44,8 +44,6 @@ def check_job_details(job_url):
     return False, school_name, gender, decile, address, map_url
 
 
-
-
 def scrape_page(url):
     resp = requests.get(url)
     resp.raise_for_status()
