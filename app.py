@@ -14,6 +14,14 @@ def check_job_details(job_url):
     resp.raise_for_status()
     soup = BeautifulSoup(resp.text, "html.parser")
 
+    # Employment type: try a few fallbacks
+    emp_tag = soup.select_one("p.title-byline[itemprop='employmentType'], p.title-byline")
+    emp_text = emp_tag.get_text(" ", strip=True).lower() if emp_tag else ""
+
+    # skip non-permanent jobs
+    if "permanent" not in emp_text:
+        return None
+
     school_name_tag = soup.select_one("div.layout-col-7 h3[itemprop='name']")
     school_name = school_name_tag.get_text(strip=True) if school_name_tag else "Unknown School"
 
@@ -32,7 +40,6 @@ def check_job_details(job_url):
     map_tag = soup.select_one("p.link-map a[href*='maps.google.com']")
     map_url = map_tag["href"] if map_tag else None
 
-    # Listed date
     listed_tag = soup.select_one("div.cal-icon.start")
     listed_date = "Unknown"
     if listed_tag:
@@ -41,7 +48,6 @@ def check_job_details(job_url):
         if day and year:
             listed_date = f"{day.get_text(strip=True)} {year.get_text(strip=True)}"
 
-    # Closing date
     close_tag = soup.select_one("div.cal-icon.end")
     close_date = "Unknown"
     if close_tag:
@@ -62,6 +68,11 @@ def scrape_page(url, counter):
     for v in vacancies:
         title = v.select_one("h3.title").get_text(strip=True)
         description = v.select_one("p.description").get_text(separator=" ", strip=True).lower()
+
+        # Parse miss
+        if not title or not description:
+            continue
+
         href = v.select_one("a.search-statable")["href"]
         link = f"{BASE_URL}{href}"
 
@@ -72,7 +83,10 @@ def scrape_page(url, counter):
         # Only process if relevant keywords are present
         if any(word in description or word in title.lower() for word in keywords):
             if link not in seen_links:
-                authority, school_name, gender, address, map_url, listed_date, close_date = check_job_details(link)
+                details = check_job_details(link)
+                if not details:
+                    continue  # non-permanent or parse miss
+                authority, school_name, gender, address, map_url, listed_date, close_date = details
                 seen_links.add(link)
                 print(f"{counter}. {title}")
                 print(f"  • {school_name}")
