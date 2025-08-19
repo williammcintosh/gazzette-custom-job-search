@@ -14,11 +14,9 @@ def check_job_details(job_url):
     resp.raise_for_status()
     soup = BeautifulSoup(resp.text, "html.parser")
 
-    # School name
     school_name_tag = soup.select_one("div.layout-col-7 h3[itemprop='name']")
     school_name = school_name_tag.get_text(strip=True) if school_name_tag else "Unknown School"
 
-    # Use DOM searching instead of relying on full block structure
     def extract_field(label):
         tag = soup.find("strong", string=label)
         if tag and tag.next_sibling:
@@ -27,24 +25,35 @@ def check_job_details(job_url):
 
     authority = extract_field("Authority:")
     gender = extract_field("Gender:")
-    decile = extract_field("Decile:")
 
-    # Skip private schools
-    if "private" in authority.lower():
-        return True, school_name, gender, decile, "Unknown", None
-
-    # Address
     address_tag = soup.select_one("p[itemprop='address'] span[itemprop='streetAddress']")
     address = address_tag.get_text(strip=True) if address_tag else "Unknown"
 
-    # Map link
     map_tag = soup.select_one("p.link-map a[href*='maps.google.com']")
     map_url = map_tag["href"] if map_tag else None
 
-    return False, school_name, gender, decile, address, map_url
+    # Listed date
+    listed_tag = soup.select_one("div.cal-icon.start")
+    listed_date = "Unknown"
+    if listed_tag:
+        day = listed_tag.select_one("span.day")
+        year = listed_tag.select_one("span.year")
+        if day and year:
+            listed_date = f"{day.get_text(strip=True)} {year.get_text(strip=True)}"
+
+    # Closing date
+    close_tag = soup.select_one("div.cal-icon.end")
+    close_date = "Unknown"
+    if close_tag:
+        day = close_tag.select_one("span.day")
+        year = close_tag.select_one("span.year")
+        if day and year:
+            close_date = f"{day.get_text(strip=True)} {year.get_text(strip=True)}"
+
+    return authority, school_name, gender, address, map_url, listed_date, close_date
 
 
-def scrape_page(url):
+def scrape_page(url, counter):
     resp = requests.get(url)
     resp.raise_for_status()
     soup = BeautifulSoup(resp.text, "html.parser")
@@ -63,29 +72,32 @@ def scrape_page(url):
         # Only process if relevant keywords are present
         if any(word in description or word in title.lower() for word in keywords):
             if link not in seen_links:
-                is_independent, school_name, gender, decile, address, map_url = check_job_details(link)
-                if is_independent:
-                    continue
+                authority, school_name, gender, address, map_url, listed_date, close_date = check_job_details(link)
                 seen_links.add(link)
-                print(f"{title}")
+                print(f"{counter}. {title}")
                 print(f"  • {school_name}")
                 print(f"  • Gender: {gender}")
-                print(f"  • Decile: {decile}")
                 print(f"  • Location: {address}")
+                print(f"  • Authority: {authority}")
+                print(f"  • Listed: {listed_date}")
+                print(f"  • Closes: {close_date}")
                 print(f"  • {link}")
                 if map_url:
                     print(f"  • {map_url}")
                 print()
+                counter+=1
 
     # Pagination
     next_button = soup.select_one("a.next")
     if next_button and "href" in next_button.attrs:
         next_href = next_button["href"]
-        return f"{BASE_URL}{next_href}"
-    return None
+        return f"{BASE_URL}{next_href}", counter
+    return None, counter
+
 
 # Start scraping
 next_url = START_URL
+count = 1
 while next_url:
-    next_url = scrape_page(next_url)
+    next_url, count = scrape_page(next_url, count)
     time.sleep(1)
