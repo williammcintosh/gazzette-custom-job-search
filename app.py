@@ -32,7 +32,7 @@ def collect_filters():
     while True:
         new_teacher_only = prompt_yes_no("New Teachers only", default=False)
         perm_only = prompt_yes_no("Permanent positions only", default=False)
-        raw = input(f"Key words (comma separated) [default: {', '.join(DEFAULT_KEYWORDS)}]: ").strip()
+        raw = input(f"Key words (comma separated, no quotes) [ex: {', '.join(DEFAULT_KEYWORDS)}]: ").strip()
         keywords = normalize_keywords(raw if raw else "", DEFAULT_KEYWORDS)
 
         print("\nConfirm your choices:")
